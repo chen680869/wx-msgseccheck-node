@@ -20,6 +20,7 @@ async function getAccessToken() {
       `https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=${APPID}&secret=${APPSECRET}`
     );
     const tokenJson = await tokenRes.json();
+
     if (tokenJson.access_token) {
       accessToken = tokenJson.access_token;
       expireTime = Date.now() + tokenJson.expires_in * 1000 - 60000; // 提前 1 分钟过期
@@ -27,9 +28,23 @@ async function getAccessToken() {
       console.log("Token Expiry Time:", expireTime);  // 打印新的过期时间
     } else {
       console.error("获取 access_token 失败:", tokenJson);
+      // 打印错误信息，查看是否有 errcode 和 errmsg
+      console.error("Error Details:", tokenJson);
     }
   } catch (e) {
     console.error("获取 access_token 出错:", e.message);
+  }
+}
+
+/**
+ * 检查 access_token 是否过期，如果过期则刷新
+ */
+async function checkAndRefreshToken() {
+  const now = Date.now();
+  // 如果 access_token 不存在或已过期，则获取新的 token
+  if (!accessToken || now > expireTime) {
+    console.log("Access token expired or not available, fetching a new one...");
+    await getAccessToken();  // 获取新的 token
   }
 }
 
@@ -43,12 +58,8 @@ app.all("/msgseccheck", async (req, res) => {
       return res.status(400).json({ errcode: 40001, errmsg: "缺少content参数" });
     }
 
-    // 获取 access_token（如果 token 过期，重新获取）
-    const now = Date.now();
-    if (!accessToken || now > expireTime) {
-      console.log("Access token expired or not available, fetching a new one...");
-      await getAccessToken();  // 获取新的 token
-    }
+    // 检查 access_token 是否过期，如果过期，则重新获取
+    await checkAndRefreshToken();  // 检查并刷新 token
 
     // 调试：打印 access_token 和 expireTime
     console.log("Using Access Token:", accessToken);
